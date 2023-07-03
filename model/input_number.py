@@ -1,6 +1,6 @@
 
 
-def input_number(output_string, start_num, end_num):
+def input_number(output_string, start_num = 0, end_num = 1000):
 
     error_message = lambda : print('This is an unaccepted response, enter a valid value')
     

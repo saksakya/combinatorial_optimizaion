@@ -2,44 +2,73 @@ import math
 import pulp as pp
 
 class find_combination(object):
-    def __init__(self, nl, status, max_menber, min_menber):
+    def __init__(self, nl, status, max_member, min_member):
         self.number_list = nl
         self.status = status
-        # self.n = len(nl)
-        self.max_menmber = max_menber
-        self.min_menber = min_menber
-        self.group_nums = math.ceil((status == True).sum() / max_menber)
+        self.n = len(nl)
+        self.max_member = max_member
+        self.min_member = min_member
+        # 最低限必要なグループ数
+        self.group_nums = math.ceil((status == True).sum() / max_member)
+        # グループリスト作成
+        self.group_list = [self.num_to_alpha(g + 1) for g in range(self.group_nums)]
+        # 個人とグループの全組み合わせ
+        self.pariticipant_group = [(i,g) for i, s in enumerate(self.status) for g in self.group_list]
+        # print(self.pariticipant_group)
+        
+    def num_to_alpha(self, num):
+        """数値→アルファベット変換"""
+        if num <= 26:
+            return chr(64 + num)
+        elif num % 26 == 0:
+            return self.num_to_alpha(num // 26 - 1) + chr(90)
+        else:
+            return self.num_to_alpha(num // 26) + chr(64 + num % 26)
 
     def calc(self):
         problem = pp.LpProblem('combination',pp.LpMinimize)
-        # n = self.n
 
-        # 変数の定義 (Memo binary:0or1 continuous:low:1~up:nまでの連続値)
-        # x = [[pp.LpVariable("x(%s,%s)"%(i, j), cat="Binary") for i in range(N)] for j in range(N)]
-        # u = [pp.LpVariable("u(%s)"%(i), cat="Continuous", lowBound=1.0, upBound=(N)) for i in range(N)]
+        # 変数の定義 (Memo binary:0or1)
+        x = pp.LpVariable.dicts('x', self.pariticipant_group, cat = 'Binary')
 
         #print(x)
-        #print(u)
-
-        # 目的条件(グループで一緒になった回数の総和)
-        # objective = pp.lpSum(self.dm[i][j] * x[i][j] for i in range(N) for j in range(N) if i != j)
-        # problem += objective
-
-        # # 制約条件1(制約条件1と2で各地点1回ずつしか通らない条件)
-        # for i in range(N):
-        #     problem += pp.lpSum(x[i][j] for j in range(N) if i != j) == 1
-
-        # # 制約条件2
-        # for i in range(N):
-        #     problem += pp.lpSum(x[j][i] for j in range(N) if i != j) == 1
-
-        # # 制約条件3(MTZ制約)
-        # for i in range(N):
-        #     for j in range(1,N):
-        #         if i != j:
-        #             problem += u[i] + 1.0 - self.BigM * (1.0 - x[i][j]) <= u[j]
-                    
-        # # print(problem)
         
-        # # 最適化の実行
-        # status = problem.solve()
+        # 目的条件(回数の総和ができる限り少なくなるようにする)
+        objective = 0
+        for g in self.group_list:
+            for i in range(self.n):
+                for j in range(self.n):
+                    if i != j:
+                        objective += pp.lpSum(self.number_list[i][j] * x[j, g]) 
+                        
+        problem += objective
+
+        # 制約条件1(参加者は、１つのグループに割り当て)
+        for i, s in enumerate(self.status):
+            if s == True:
+                problem += pp.lpSum([x[i, g] for g in self.group_list]) == 1
+
+        # 制約条件2(各クラスは、min~max人)
+        for g in self.group_list:
+            problem += pp.lpSum([x[i, g] for i, s in enumerate(self.status) if s == True]) >= self.min_member
+            problem += pp.lpSum([x[i, g] for i, s in enumerate(self.status) if s == True]) <= self.max_member
+
+        #print(problem)
+        
+        # 最適化の実行
+        status = problem.solve()
+        
+        # 結果の把握
+        print("Status: {}".format(pp.LpStatus[status]))
+        # 最適化計算の結果
+        group_result = {}
+        belong_result = {}
+        
+        for g in self.group_list:
+            group_result[g] = [i for i, s in enumerate(self.status) if ((s == True) & (x[i,g].value()==1))]
+        
+        for i, s in enumerate(self.status):
+            if s == True:
+                belong_result[i] = [g for g in self.group_list if x[i,g].value() == 1][0]
+        
+        return group_result, belong_result
